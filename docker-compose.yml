@@ -1,0 +1,131 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8
+    container_name: frontefolio_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api-gateway:
+    build: ./services/api-gateway
+    container_name: frontefolio_gateway
+    ports:
+      - "3000:3000"
+    env_file: .env
+    environment:
+      PORT: 3000
+      AUTH_SERVICE_URL:      http://auth-service:3001
+      USER_SERVICE_URL:      http://user-service:3002
+      CATALOG_SERVICE_URL:   http://catalog-service:3003
+      ORDER_SERVICE_URL:     http://order-service:3004
+      PAYMENT_SERVICE_URL:   http://payment-service:3005
+      LOGISTICS_SERVICE_URL: http://logistics-service:3006
+      CHAT_SERVICE_URL:      http://chat-service:3007
+    depends_on:
+      - auth-service
+      - user-service
+      - catalog-service
+      - order-service
+      - payment-service
+      - logistics-service
+      - chat-service
+    restart: unless-stopped
+
+  auth-service:
+    build: ./services/auth-service
+    container_name: frontefolio_auth
+    env_file: .env
+    environment:
+      PORT: 3001
+      DB_HOST: mysql
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  user-service:
+    build: ./services/user-service
+    container_name: frontefolio_users
+    env_file: .env
+    environment:
+      PORT: 3002
+      DB_HOST: mysql
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  catalog-service:
+    build: ./services/catalog-service
+    container_name: frontefolio_catalog
+    env_file: .env
+    environment:
+      PORT: 3003
+      DB_HOST: mysql
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  order-service:
+    build: ./services/order-service
+    container_name: frontefolio_orders
+    env_file: .env
+    environment:
+      PORT: 3004
+      DB_HOST: mysql
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  payment-service:
+    build: ./services/payment-service
+    container_name: frontefolio_payments
+    env_file: .env
+    environment:
+      PORT: 3005
+      DB_HOST: mysql
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  logistics-service:
+    build: ./services/logistics-service
+    container_name: frontefolio_logistics
+    env_file: .env
+    environment:
+      PORT: 3006
+      DB_HOST: mysql
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  chat-service:
+    build: ./services/chat-service
+    container_name: frontefolio_chat
+    env_file: .env
+    environment:
+      PORT: 3007
+      DB_HOST: mysql
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
