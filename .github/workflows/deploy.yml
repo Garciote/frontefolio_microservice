@@ -16,6 +16,22 @@ jobs:
           node-version: 20
 
       - run: npm install
+
+      - name: Create CI .env for docker compose validation
+        run: |
+          cat > .env <<'EOF_ENV'
+          DB_PASSWORD=ci_password
+          DB_NAME=frontefolio
+          DB_HOST=mysql
+          DB_PORT=3306
+          DB_USER=root
+          JWT_SECRET=ci_secret
+          JWT_EXPIRES_IN=7d
+          VALID_CARDS=4111111111111111
+          FRONTEND_CUSTOMER_URL=http://localhost:5173
+          FRONTEND_ADMIN_URL=http://localhost:5173
+          EOF_ENV
+
       - run: docker compose config
 
   deploy:
@@ -30,14 +46,22 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+          HOST="${{ secrets.VPS_HOST }}"
+          HOST="${HOST#http://}"
+          HOST="${HOST#https://}"
+          HOST="${HOST%%/*}"
+          echo "VPS_HOST_NORMALIZED=${HOST}" >> "$GITHUB_ENV"
+          ssh-keyscan -T 15 -H "${HOST}" >> ~/.ssh/known_hosts || {
+            echo "::error::Could not reach ${HOST}:22. Check that VPS_HOST is only a host/IP and that the EC2 Security Group allows SSH from GitHub Actions runners."
+            exit 1
+          }
 
       - name: Sync backend to EC2
         run: |
           rsync -az --delete \
             --exclude='.git' \
             --exclude='node_modules' \
-            ./ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/frontefolio/backend/
+            ./ ${{ secrets.VPS_USER }}@${VPS_HOST_NORMALIZED}:/opt/frontefolio/backend/
 
       - name: Write backend .env, migrate, seed, build and restart
         uses: appleboy/ssh-action@v1
