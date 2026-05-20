@@ -56,12 +56,23 @@ jobs:
             exit 1
           }
 
-      - name: Sync backend to EC2
+      - name: Upload backend to temporary path
         run: |
+          REMOTE_TMP="/tmp/frontefolio-backend-${{ github.sha }}"
+          ssh ${{ secrets.VPS_USER }}@${VPS_HOST_NORMALIZED} "rm -rf ${REMOTE_TMP} && mkdir -p ${REMOTE_TMP}"
           rsync -az --delete \
             --exclude='.git' \
             --exclude='node_modules' \
-            ./ ${{ secrets.VPS_USER }}@${VPS_HOST_NORMALIZED}:/opt/frontefolio/backend/
+            ./ ${{ secrets.VPS_USER }}@${VPS_HOST_NORMALIZED}:${REMOTE_TMP}/
+
+      - name: Publish backend with deploy permissions
+        run: |
+          REMOTE_TMP="/tmp/frontefolio-backend-${{ github.sha }}"
+          ssh ${{ secrets.VPS_USER }}@${VPS_HOST_NORMALIZED} "\
+            sudo mkdir -p /opt/frontefolio/backend && \
+            sudo rsync -a --delete --exclude='.env' ${REMOTE_TMP}/ /opt/frontefolio/backend/ && \
+            sudo chown -R ${{ secrets.VPS_USER }}:${{ secrets.VPS_USER }} /opt/frontefolio/backend && \
+            rm -rf ${REMOTE_TMP}"
 
       - name: Write backend .env, migrate, seed, build and restart
         uses: appleboy/ssh-action@v1
